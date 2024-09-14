@@ -1,0 +1,26 @@
+[package]
+name = "trussed-pqc-backend"
+version = "0.1.0"
+edition = "2021"
+description = "Trussed backend adding support for post-quantum cryptography"
+authors = [
+    "Sandbox AQ <support@sandboxaq.com>"
+]
+license = "Apache-2.0 OR MIT"
+
+[dependencies]
+serde = { version = "1.0.210", default-features = false, features = ["derive"] }
+der = "0.7.9"
+pkcs8 = {version = "0.10.2", features = ["alloc"]}
+pqcrypto-dilithium = { version = "0.5.0" }
+trussed = "0.1.0"
+serde-big-array = "0.5.1"
+pqcrypto-traits = "0.3.5"
+postcard = { version = "1.0.10", features = ["alloc"]}
+
+[dev-dependencies]
+
+[patch.crates-io]
+trussed = { path = "../trussed" }
+
+[features]
