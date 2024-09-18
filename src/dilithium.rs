@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 use trussed::{
     api::{reply, request, Reply, Request},
     backend::Backend,
-    client::mechanisms,
     key,
     platform::Platform,
     service::{Keystore, ServiceResources},
@@ -21,14 +20,12 @@ use trussed::{
     Error,
 };
 
-use pkcs8::{
-    AlgorithmIdentifierRef, ObjectIdentifier, PrivateKeyInfo, SubjectPublicKeyInfo, Version,
-};
+use pkcs8::{AlgorithmIdentifierRef, ObjectIdentifier};
 
-use pqcrypto_dilithium::dilithium2;
-use pqcrypto_dilithium::dilithium3;
-use pqcrypto_dilithium::dilithium5;
-use pqcrypto_traits::sign::{PublicKey, SecretKey, SignedMessage};
+use pqcrypto::prelude::*;
+use pqcrypto::sign::dilithium2;
+use pqcrypto::sign::dilithium3;
+use pqcrypto::sign::dilithium5;
 
 mod oids {
     pub const DILITHIUM2: &str = "1.3.6.1.4.1.2.267.7.4.4";
@@ -48,8 +45,8 @@ fn request_kind(mechanism: &Mechanism) -> key::Kind {
 
 #[derive(Serialize, Deserialize)]
 struct PrivateKeyPkcs8WithPublicKeyId<'a> {
-    pub_key_id: KeyId,
     priv_key_der_bytes: &'a [u8],
+    pub_key_bytes: &'a [u8],
 }
 
 fn store_key_dilithium(
@@ -59,13 +56,6 @@ fn store_key_dilithium(
     pub_key_bytes: &[u8],
     priv_key_bytes: &[u8],
 ) -> Result<reply::GenerateKey, Error> {
-    let pub_key_id = keystore.store_key(
-        request.attributes.persistence,
-        key::Secrecy::Public,
-        key::Info::from(request_kind(&request.mechanism)).with_local_flag(),
-        &pub_key_bytes[..],
-    )?;
-
     let priv_key_pkcs8 = pkcs8::PrivateKeyInfo::new(
         AlgorithmIdentifierRef {
             oid: ObjectIdentifier::new(oid).expect("Failed to create object identifier"),
@@ -79,7 +69,7 @@ fn store_key_dilithium(
 
     let wrapped_key = PrivateKeyPkcs8WithPublicKeyId {
         priv_key_der_bytes: &priv_key_der_bytes[..],
-        pub_key_id: pub_key_id,
+        pub_key_bytes: &pub_key_bytes[..],
     };
 
     let wrapped_bytes: Vec<u8> = postcard::to_allocvec(&wrapped_key).unwrap();
@@ -155,7 +145,7 @@ fn derive_key(
 ) -> Result<reply::DeriveKey, Error> {
     // Retrieve private key
     let base_key_id = &request.base_key;
-    let priv_key_der = keystore
+    let wrapped_key_bytes = keystore
         .load_key(
             key::Secrecy::Secret,
             Some(request_kind(&request.mechanism)),
@@ -167,11 +157,17 @@ fn derive_key(
     // We can't derive a public key from a private key when using Dilithium. Instead,
     // we generated the public key at the same time as the private key in generate_key,
     // and we just retrieve it here instead of deriving it anew.
-    let wrapped_key: PrivateKeyPkcs8WithPublicKeyId = postcard::from_bytes(&priv_key_der).unwrap();
+    let wrapped_key: PrivateKeyPkcs8WithPublicKeyId =
+        postcard::from_bytes(&wrapped_key_bytes).unwrap();
 
-    Ok(reply::DeriveKey {
-        key: wrapped_key.pub_key_id,
-    })
+    let pub_key_id = keystore.store_key(
+        request.attributes.persistence,
+        key::Secrecy::Public,
+        request_kind(&request.mechanism),
+        wrapped_key.pub_key_bytes,
+    )?;
+
+    Ok(reply::DeriveKey { key: pub_key_id })
 }
 
 fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::Sign, Error> {
@@ -191,11 +187,12 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
     let priv_key_pkcs8 = pkcs8::PrivateKeyInfo::from_der(wrapped_key.priv_key_der_bytes)
         .expect("Failed to decode Dilithium PKCS#8 from DER");
 
+    // TODO: check if this is returning just the signature, or the signed message
     match request.mechanism {
         Mechanism::Dilithium2 => {
             let priv_key = dilithium2::SecretKey::from_bytes(priv_key_pkcs8.private_key)
                 .expect("Failed to load Dilithium key from PKCS#8");
-            let signed_message = dilithium2::sign(&request.message, &priv_key);
+            let signed_message = dilithium2::detached_sign(&request.message, &priv_key);
             return Ok(reply::Sign {
                 signature: Signature::from_slice(signed_message.as_bytes())
                     .expect("Failed to build signature from signed message bytes"),
@@ -204,7 +201,7 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
         Mechanism::Dilithium3 => {
             let priv_key = dilithium3::SecretKey::from_bytes(priv_key_pkcs8.private_key)
                 .expect("Failed to load Dilithium key from PKCS#8");
-            let signed_message = dilithium3::sign(&request.message, &priv_key);
+            let signed_message = dilithium3::detached_sign(&request.message, &priv_key);
             return Ok(reply::Sign {
                 signature: Signature::from_slice(signed_message.as_bytes())
                     .expect("Failed to build signature from signed message bytes"),
@@ -213,7 +210,7 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
         Mechanism::Dilithium5 => {
             let priv_key = dilithium5::SecretKey::from_bytes(priv_key_pkcs8.private_key)
                 .expect("Failed to load Dilithium key from PKCS#8");
-            let signed_message = dilithium5::sign(&request.message, &priv_key);
+            let signed_message = dilithium5::detached_sign(&request.message, &priv_key);
             return Ok(reply::Sign {
                 signature: Signature::from_slice(signed_message.as_bytes())
                     .expect("Failed to build signature from signed message bytes"),
@@ -223,6 +220,69 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
     }
 }
 
+fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<reply::Verify, Error> {
+    if let SignatureSerialization::Raw = request.format {
+    } else {
+        return Err(Error::InvalidSerializationFormat);
+    }
+
+    let key_id = request.key;
+
+    let pub_key_bytes = keystore
+        .load_key(
+            key::Secrecy::Public,
+            Some(request_kind(&request.mechanism)),
+            &key_id,
+        )
+        .expect("Failed to load a Dilithium private key with the given ID")
+        .material;
+
+    match request.mechanism {
+        Mechanism::Dilithium2 => {
+            let pub_key = dilithium2::PublicKey::from_bytes(&pub_key_bytes[..])
+                .expect("Failed to load Dilithium public key");
+            let sig = match dilithium2::DetachedSignature::from_bytes(request.signature.as_slice())
+            {
+                Ok(sig) => sig,
+                Err(_) => return Err(Error::WrongSignatureLength),
+            };
+            let verification_ok =
+                dilithium2::verify_detached_signature(&sig, &request.message, &pub_key).is_ok();
+            Ok(reply::Verify {
+                valid: verification_ok,
+            })
+        }
+        Mechanism::Dilithium3 => {
+            let pub_key = dilithium3::PublicKey::from_bytes(&pub_key_bytes[..])
+                .expect("Failed to load Dilithium public key");
+            let sig = match dilithium3::DetachedSignature::from_bytes(request.signature.as_slice())
+            {
+                Ok(sig) => sig,
+                Err(_) => return Err(Error::WrongSignatureLength),
+            };
+            let verification_ok =
+                dilithium3::verify_detached_signature(&sig, &request.message, &pub_key).is_ok();
+            Ok(reply::Verify {
+                valid: verification_ok,
+            })
+        }
+        Mechanism::Dilithium5 => {
+            let pub_key = dilithium5::PublicKey::from_bytes(&pub_key_bytes[..])
+                .expect("Failed to load Dilithium public key");
+            let sig = match dilithium5::DetachedSignature::from_bytes(request.signature.as_slice())
+            {
+                Ok(sig) => sig,
+                Err(_) => return Err(Error::WrongSignatureLength),
+            };
+            let verification_ok =
+                dilithium5::verify_detached_signature(&sig, &request.message, &pub_key).is_ok();
+            Ok(reply::Verify {
+                valid: verification_ok,
+            })
+        }
+        _ => Err(Error::RequestNotAvailable),
+    }
+}
 pub struct Dilithium;
 
 impl Dilithium {}
@@ -237,7 +297,7 @@ impl Backend for Dilithium {
         resources: &mut ServiceResources<P>,
     ) -> Result<Reply, Error> {
         let mut rng = resources.rng()?;
-        let mut keystore = resources.keystore(core_ctx)?;
+        let mut keystore = resources.keystore(core_ctx.path.clone())?;
         match request {
             Request::DeriveKey(req) => derive_key(&mut keystore, req).map(Reply::DeriveKey),
             // Request::DeserializeKey(req) => {
@@ -250,23 +310,7 @@ impl Backend for Dilithium {
             // }
             Request::GenerateKey(req) => generate_key(&mut keystore, req).map(Reply::GenerateKey),
             Request::Sign(req) => sign(&mut keystore, req).map(Reply::Sign),
-            // Request::Verify(req) => {
-            //     let (bits, kind, raw) = bits_and_kind_from_mechanism(req.mechanism)?;
-            //     if raw {
-            //         warn!("Attempt at raw verify");
-            //         return Err(Error::MechanismInvalid);
-            //     }
-            //     verify(&mut keystore, req, bits, kind).map(Reply::Verify)
-            // }
-            // Request::Decrypt(req) => {
-            //     let (bits, kind, raw) = bits_and_kind_from_mechanism(req.mechanism)?;
-            //     if raw {
-            //         rsa_raw(&mut keystore, req.key, &req.message, kind, bits, &mut rng)
-            //             .map(|r| Reply::Decrypt(reply::Decrypt { plaintext: Some(r) }))
-            //     } else {
-            //         decrypt(&mut keystore, req, kind).map(Reply::Decrypt)
-            //     }
-            // }
+            Request::Verify(req) => verify(&mut keystore, req).map(Reply::Verify),
             // Request::UnsafeInjectKey(req) => {
             //     let (bits, kind, _) = bits_and_kind_from_mechanism(req.mechanism)?;
             //     unsafe_inject_key(&mut keystore, req, bits, kind).map(Reply::UnsafeInjectKey)
@@ -275,7 +319,7 @@ impl Backend for Dilithium {
             //     let (_bits, kind, _) = bits_and_kind_from_mechanism(req.mechanism)?;
             //     exists(&mut keystore, req, kind).map(Reply::Exists)
             // }
-            //_ => Err(Error::RequestNotAvailable),
+            _ => Err(Error::RequestNotAvailable),
         }
     }
 }
