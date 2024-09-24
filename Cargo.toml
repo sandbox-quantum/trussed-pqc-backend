@@ -20,6 +20,7 @@ pqcrypto = "0.17.0"
 [dev-dependencies]
 
 [patch.crates-io]
+# For local development only
 trussed = { path = "../trussed" }
 # Must be patched to force the Nitrokey/trussed repo to use this version
 littlefs2 = { git = "https://github.com/trussed-dev/littlefs2.git", rev = "960e57d9fc0d209308c8e15dc2625", version = "0.4.0" } 
