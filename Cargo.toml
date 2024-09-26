@@ -12,17 +12,26 @@ license = "Apache-2.0 OR MIT"
 serde = { version = "1.0.210", default-features = false, features = ["derive"] }
 der = "0.7.9"
 pkcs8 = {version = "0.10.2", features = ["alloc"]}
-trussed = "0.1.0" # { git = "https://github.com/Nitrokey/trussed.git", tag = "v0.1.0-nitrokey.21" } 
+trussed = { path = "../trussed", features = ["pqc"] } #"0.1.0" # { git = "https://github.com/Nitrokey/trussed.git", tag = "v0.1.0-nitrokey.21" } 
 serde-big-array = "0.5.1"
-postcard = { version = "1.0.10", features = ["alloc"]}
 pqcrypto = "0.17.0"
+pqcrypto-dilithium = "0.5.0"
 
 [dev-dependencies]
+hex-literal = "0.3.4"
+test-log = "0.2.11"
 
 [patch.crates-io]
 # For local development only
-trussed = { path = "../trussed" }
+trussed = { path = "../trussed"}
 # Must be patched to force the Nitrokey/trussed repo to use this version
 littlefs2 = { git = "https://github.com/trussed-dev/littlefs2.git", rev = "960e57d9fc0d209308c8e15dc2625", version = "0.4.0" } 
 
 [features]
+virt = ["std", "trussed/virt"]
+std = []
+
+# Algorithms to enable
+dilithium2 = ["trussed/dilithium2"]
+dilithium3 = ["trussed/dilithium3"]
+dilithium5 = ["trussed/dilithium5"]

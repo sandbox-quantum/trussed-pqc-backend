@@ -1,0 +1,84 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'trussed-pqc-backend'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=trussed-pqc-backend"
+                ],
+                "filter": {
+                    "name": "trussed-pqc-backend",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'dilithium3'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=dilithium3",
+                    "--package=trussed-pqc-backend",
+                    "--features=virt",
+                ],
+                "filter": {
+                    "name": "dilithium3",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'dilithium2'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=dilithium2",
+                    "--package=trussed-pqc-backend",
+                    "--features=virt",
+                ],
+                "filter": {
+                    "name": "dilithium2",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'dilithium5'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=dilithium5",
+                    "--package=trussed-pqc-backend",
+                    "--features=virt",
+                ],
+                "filter": {
+                    "name": "dilithium5",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

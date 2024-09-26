@@ -1,11 +1,12 @@
 // Copyright (C) SandboxAQ
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
+// TODO: conditionally compile dilithium2/3/5
+// TODO: implement key injection
+
 extern crate alloc;
 
 use der::{Decode, Encode};
-use postcard;
-use serde::{Deserialize, Serialize};
 use trussed::{
     api::{reply, request, Reply, Request},
     backend::Backend,
@@ -103,7 +104,7 @@ fn generate_key_dilithium5(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
 ) -> Result<reply::GenerateKey, Error> {
-    let (pub_key, priv_key) = dilithium2::keypair();
+    let (pub_key, priv_key) = dilithium5::keypair();
     store_key_dilithium(
         keystore,
         request,
@@ -134,6 +135,7 @@ fn derive_key(
 ) -> Result<reply::DeriveKey, Error> {
     // Retrieve private key
     let base_key_id = &request.base_key;
+    // TODO: figure out why, with the max material length set appropriately, it chops off 4 bytes
     let priv_key_der_bytes = keystore
         .load_key(
             key::Secrecy::Secret,
@@ -361,9 +363,9 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
         _ => Err(Error::RequestNotAvailable),
     }
 }
-pub struct Dilithium;
+pub struct SoftwareDilithium;
 
-impl Backend for Dilithium {
+impl Backend for SoftwareDilithium {
     type Context = ();
     fn request<P: Platform>(
         &mut self,
@@ -372,7 +374,6 @@ impl Backend for Dilithium {
         request: &Request,
         resources: &mut ServiceResources<P>,
     ) -> Result<Reply, Error> {
-        let mut rng = resources.rng()?;
         let mut keystore = resources.keystore(core_ctx.path.clone())?;
         match request {
             Request::DeriveKey(req) => derive_key(&mut keystore, req).map(Reply::DeriveKey),
