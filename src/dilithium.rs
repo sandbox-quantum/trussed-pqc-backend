@@ -34,14 +34,13 @@ mod oids {
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.8.7");
 }
 
-fn request_kind(mechanism: &Mechanism) -> key::Kind {
+fn request_kind(mechanism: &Mechanism) -> Result<key::Kind, Error> {
     match mechanism {
         Mechanism::Dilithium2 => Ok(key::Kind::Dilithium2),
         Mechanism::Dilithium3 => Ok(key::Kind::Dilithium3),
         Mechanism::Dilithium5 => Ok(key::Kind::Dilithium5),
         _ => Err(Error::RequestNotAvailable),
     }
-    .expect("Unsupported request mechanism")
 }
 
 fn store_key_dilithium(
@@ -67,7 +66,7 @@ fn store_key_dilithium(
     let priv_key_id = keystore.store_key(
         request.attributes.persistence,
         key::Secrecy::Secret,
-        key::Info::from(request_kind(&request.mechanism)).with_local_flag(),
+        key::Info::from(request_kind(&request.mechanism)?).with_local_flag(),
         &priv_key_der_bytes[..],
     )?;
 
@@ -118,15 +117,12 @@ fn generate_key(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
 ) -> Result<reply::GenerateKey, Error> {
-    let res = match request.mechanism {
+    match request.mechanism {
         Mechanism::Dilithium2 => generate_key_dilithium2(keystore, request),
         Mechanism::Dilithium3 => generate_key_dilithium3(keystore, request),
         Mechanism::Dilithium5 => generate_key_dilithium5(keystore, request),
         _ => Err(Error::RequestNotAvailable),
     }
-    .expect("Unknown key kind for key generation");
-
-    Ok(res)
 }
 
 fn derive_key(
@@ -139,7 +135,7 @@ fn derive_key(
     let priv_key_der_bytes = keystore
         .load_key(
             key::Secrecy::Secret,
-            Some(request_kind(&request.mechanism)),
+            Some(request_kind(&request.mechanism)?),
             base_key_id,
         )
         .expect("Failed to load a Dilithium private key with the given ID")
@@ -160,7 +156,7 @@ fn derive_key(
     let pub_key_id = keystore.store_key(
         request.attributes.persistence,
         key::Secrecy::Public,
-        request_kind(&request.mechanism),
+        request_kind(&request.mechanism)?,
         &pub_key_der_bytes[..],
     )?;
 
@@ -178,7 +174,7 @@ fn serialize_key(
     let pub_key_der = keystore
         .load_key(
             key::Secrecy::Public,
-            Some(request_kind(&request.mechanism)),
+            Some(request_kind(&request.mechanism)?),
             &key_id,
         )
         .unwrap_or_else(|_| panic!("Failed to load a Dilithium public key with the given ID"))
@@ -216,7 +212,7 @@ fn deserialize_pkcs_key(
     let pub_key_id = keystore.store_key(
         request.attributes.persistence,
         key::Secrecy::Public,
-        request_kind(&request.mechanism),
+        request_kind(&request.mechanism)?,
         pub_key_der.as_ref(),
     )?;
 
@@ -238,7 +234,7 @@ fn exists(keystore: &mut impl Keystore, request: &request::Exists) -> Result<rep
 
     let exists = keystore.exists_key(
         key::Secrecy::Secret,
-        Some(request_kind(&request.mechanism)),
+        Some(request_kind(&request.mechanism)?),
         &key_id,
     );
     Ok(reply::Exists { exists })
@@ -250,7 +246,7 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
     let priv_key_der = keystore
         .load_key(
             key::Secrecy::Secret,
-            Some(request_kind(&request.mechanism)),
+            Some(request_kind(&request.mechanism)?),
             &key_id,
         )
         .expect("Failed to load a Dilithium private key with the given ID")
@@ -303,7 +299,7 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
     let pub_key_der = keystore
         .load_key(
             key::Secrecy::Public,
-            Some(request_kind(&request.mechanism)),
+            Some(request_kind(&request.mechanism)?),
             &key_id,
         )
         .unwrap_or_else(|_| panic!("Failed to load a Dilithium public key with the given ID"))
