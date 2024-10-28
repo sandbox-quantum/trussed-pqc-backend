@@ -13,8 +13,8 @@ serde = { version = "1.0.210", default-features = false, features = ["derive"] }
 der = "0.7.9"
 pkcs8 = {version = "0.10.2", features = ["alloc"]}
 # TODO: update this
-trussed = "0.1.0" # { git = "https://github.com/Nitrokey/trussed.git", tag = "v0.1.0-nitrokey.21" } 
-#trussed = {path = "../trussed" }
+#trussed = { git = "https://github.com/Nitrokey/trussed.git", tag = "v0.1.0-nitrokey.23" } 
+trussed = {path = "../trussed" }
 serde-big-array = "0.5.1"
 pqcrypto = "0.17.0"
 pqcrypto-dilithium = "0.5.0"
@@ -27,6 +27,7 @@ test-log = "0.2.11"
 # For local development only
 # Must be patched to force the Nitrokey/trussed repo to use this version
 littlefs2 = { git = "https://github.com/trussed-dev/littlefs2.git", rev = "960e57d9fc0d209308c8e15dc2625", version = "0.4.0" } 
+cosey = { path = "../cosey" }
 
 [features]
 virt = ["std", "trussed/virt"]
