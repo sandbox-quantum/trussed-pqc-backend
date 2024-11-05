@@ -18,6 +18,7 @@ trussed = {path = "../trussed" }
 serde-big-array = "0.5.1"
 pqcrypto = "0.17.0"
 pqcrypto-dilithium = "0.5.0"
+cosey = "0.3"
 
 [dev-dependencies]
 hex-literal = "0.3.4"
@@ -34,6 +35,6 @@ virt = ["std", "trussed/virt"]
 std = []
 
 # Algorithms to enable
-dilithium2 = ["trussed/backend-dilithium2"]
-dilithium3 = ["trussed/backend-dilithium3"]
-dilithium5 = ["trussed/backend-dilithium5"]
+dilithium2 = ["trussed/backend-dilithium2", "cosey/backend-dilithium2"]
+dilithium3 = ["trussed/backend-dilithium3", "cosey/backend-dilithium3"]
+dilithium5 = ["trussed/backend-dilithium5", "cosey/backend-dilithium5"]

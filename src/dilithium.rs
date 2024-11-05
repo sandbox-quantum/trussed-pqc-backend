@@ -10,10 +10,14 @@ use der::{Decode, Encode};
 use trussed::{
     api::{reply, request, Reply, Request},
     backend::Backend,
+    config::MAX_SERIALIZED_KEY_LENGTH,
     key,
     platform::Platform,
     service::{Keystore, ServiceResources},
-    types::{CoreContext, KeySerialization, Mechanism, Signature, SignatureSerialization},
+    types::{
+        Bytes, CoreContext, KeySerialization, Mechanism, SerializedKey, Signature,
+        SignatureSerialization,
+    },
     Error,
 };
 
@@ -21,8 +25,12 @@ use der::asn1::BitStringRef;
 use pkcs8::AlgorithmIdentifierRef;
 
 use pqcrypto::prelude::*;
+
+#[cfg(feature = "dilithium2")]
 use pqcrypto::sign::dilithium2;
+#[cfg(feature = "dilithium3")]
 use pqcrypto::sign::dilithium3;
+#[cfg(feature = "dilithium5")]
 use pqcrypto::sign::dilithium5;
 
 mod oids {
@@ -36,8 +44,11 @@ mod oids {
 
 fn request_kind(mechanism: &Mechanism) -> Result<key::Kind, Error> {
     match mechanism {
+        #[cfg(feature = "dilithium2")]
         Mechanism::Dilithium2 => Ok(key::Kind::Dilithium2),
+        #[cfg(feature = "dilithium3")]
         Mechanism::Dilithium3 => Ok(key::Kind::Dilithium3),
+        #[cfg(feature = "dilithium5")]
         Mechanism::Dilithium5 => Ok(key::Kind::Dilithium5),
         _ => Err(Error::RequestNotAvailable),
     }
@@ -73,6 +84,7 @@ fn store_key_dilithium(
     Ok(reply::GenerateKey { key: priv_key_id })
 }
 
+#[cfg(feature = "dilithium2")]
 fn generate_key_dilithium2(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
@@ -86,6 +98,7 @@ fn generate_key_dilithium2(
         priv_key.as_bytes(),
     )
 }
+#[cfg(feature = "dilithium3")]
 fn generate_key_dilithium3(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
@@ -99,6 +112,7 @@ fn generate_key_dilithium3(
         priv_key.as_bytes(),
     )
 }
+#[cfg(feature = "dilithium5")]
 fn generate_key_dilithium5(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
@@ -118,8 +132,11 @@ fn generate_key(
     request: &request::GenerateKey,
 ) -> Result<reply::GenerateKey, Error> {
     match request.mechanism {
+        #[cfg(feature = "dilithium2")]
         Mechanism::Dilithium2 => generate_key_dilithium2(keystore, request),
+        #[cfg(feature = "dilithium3")]
         Mechanism::Dilithium3 => generate_key_dilithium3(keystore, request),
+        #[cfg(feature = "dilithium5")]
         Mechanism::Dilithium5 => generate_key_dilithium5(keystore, request),
         _ => Err(Error::RequestNotAvailable),
     }
@@ -180,8 +197,13 @@ fn serialize_key(
         .unwrap_or_else(|_| panic!("Failed to load a Dilithium public key with the given ID"))
         .material;
 
-    let serialized_key = match request.format {
-        KeySerialization::Pkcs8Der => pub_key_der.into(),
+    let serialized_key: Bytes<MAX_SERIALIZED_KEY_LENGTH> = match request.format {
+        KeySerialization::Raw | KeySerialization::Cose => {
+            let mut data = SerializedKey::new();
+            data.extend_from_slice(&pub_key_der[..])
+                .map_err(|_| Error::InternalError)?;
+            data
+        }
         _ => {
             return Err(Error::InvalidSerializationFormat);
         }
@@ -225,6 +247,47 @@ fn deserialize_key(
 ) -> Result<reply::DeserializeKey, Error> {
     match request.format {
         KeySerialization::Pkcs8Der => deserialize_pkcs_key(keystore, request),
+        // TODO: complete
+        // KeySerialization::Cose => {
+        //     let pk: Result<Bytes, Error> = match request.mechanism {
+        //         Mechanism::Dilithium2 => {
+        //             let cose_public_key: cosey::Dilithium2PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
+        //             cose_public_key.into()
+        //         }
+        //         Mechanism::Dilithium3 => {
+        //             let cose_public_key: cosey::Dilithium3PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
+        //             cose_public_key.into()
+        //         }
+        //         Mechanism::Dilithium5 => {
+        //             let cose_public_key: cosey::Dilithium5PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
+        //             cose_public_key.into()
+        //         }
+        //         _ => Err(Error::RequestNotAvailable),
+        //     };
+
+        //     // TODO: this should all be done upstream
+        //     let cose_public_key: cosey::P256PublicKey =
+        //         crate::cbor_deserialize(&request.serialized_key)
+        //             .map_err(|_| Error::CborError)?;
+        //     let mut serialized_key = [0u8; 64];
+        //     if cose_public_key.x.len() != 32 || cose_public_key.y.len() != 32 {
+        //         return Err(Error::InvalidSerializedKey);
+        //     }
+
+        //     serialized_key[..32].copy_from_slice(&cose_public_key.x);
+        //     serialized_key[32..].copy_from_slice(&cose_public_key.y);
+
+        //     p256_cortex_m4::PublicKey::from_untagged_bytes(&serialized_key)
+        //         .map_err(|_| Error::InvalidSerializedKey)?
+        // }
+
+        // KeySerialization::Raw => {
+        //     let mut serialized_key = [0u8; 64];
+        //     serialized_key.copy_from_slice(&request.serialized_key[..64]);
+
+        //     p256_cortex_m4::PublicKey::from_untagged_bytes(&serialized_key)
+        //         .map_err(|_| Error::InvalidSerializedKey)?
+        // }
         _ => Err(Error::InvalidSerializationFormat),
     }
 }
@@ -257,6 +320,7 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
 
     // TODO: check if this is returning just the signature, or the signed message
     match request.mechanism {
+        #[cfg(feature = "dilithium2")]
         Mechanism::Dilithium2 => {
             let priv_key = dilithium2::SecretKey::from_bytes(priv_key_pkcs8.private_key)
                 .expect("Failed to load Dilithium key from PKCS#8");
@@ -266,6 +330,7 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
                     .expect("Failed to build signature from signed message bytes"),
             });
         }
+        #[cfg(feature = "dilithium3")]
         Mechanism::Dilithium3 => {
             let priv_key = dilithium3::SecretKey::from_bytes(priv_key_pkcs8.private_key)
                 .expect("Failed to load Dilithium key from PKCS#8");
@@ -275,6 +340,7 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
                     .expect("Failed to build signature from signed message bytes"),
             });
         }
+        #[cfg(feature = "dilithium5")]
         Mechanism::Dilithium5 => {
             let priv_key = dilithium5::SecretKey::from_bytes(priv_key_pkcs8.private_key)
                 .expect("Failed to load Dilithium key from PKCS#8");
@@ -314,6 +380,7 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
     };
 
     match request.mechanism {
+        #[cfg(feature = "dilithium2")]
         Mechanism::Dilithium2 => {
             let pub_key = dilithium2::PublicKey::from_bytes(pub_key_bytes)
                 .expect("Failed to load Dilithium public key");
@@ -328,6 +395,7 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
                 valid: verification_ok,
             })
         }
+        #[cfg(feature = "dilithium3")]
         Mechanism::Dilithium3 => {
             let pub_key = dilithium3::PublicKey::from_bytes(pub_key_bytes)
                 .expect("Failed to load Dilithium public key");
@@ -342,6 +410,7 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
                 valid: verification_ok,
             })
         }
+        #[cfg(feature = "dilithium5")]
         Mechanism::Dilithium5 => {
             let pub_key = dilithium5::PublicKey::from_bytes(pub_key_bytes)
                 .expect("Failed to load Dilithium public key");
