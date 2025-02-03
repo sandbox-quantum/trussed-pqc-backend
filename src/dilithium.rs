@@ -6,6 +6,7 @@
 
 extern crate alloc;
 
+use cosey;
 use der::{Decode, Encode};
 use trussed::{
     api::{reply, request, Reply, Request},
@@ -34,13 +35,13 @@ use pqcrypto::sign::dilithium3;
 use pqcrypto::sign::dilithium5;
 
 mod oids {
-#[cfg(feature = "dilithium2")]
+    #[cfg(feature = "dilithium2")]
     pub const DILITHIUM2: pkcs8::ObjectIdentifier =
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.4.4");
-#[cfg(feature = "dilithium3")]
+    #[cfg(feature = "dilithium3")]
     pub const DILITHIUM3: pkcs8::ObjectIdentifier =
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.6.5");
-#[cfg(feature = "dilithium5")]
+    #[cfg(feature = "dilithium5")]
     pub const DILITHIUM5: pkcs8::ObjectIdentifier =
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.8.7");
 }
@@ -202,25 +203,32 @@ fn serialize_key(
 
     let serialized_key: Bytes<MAX_SERIALIZED_KEY_LENGTH> = match request.format {
         KeySerialization::Cose => {
-            let pub_key_der = pkcs8::SubjectPublicKeyInfoRef::from_der(&pub_key_der).map_err(|_| Error::InvalidSerializationFormat)?;
+            let pub_key_der = pkcs8::SubjectPublicKeyInfoRef::from_der(&pub_key_der)
+                .map_err(|_| Error::InvalidSerializationFormat)?;
             let pub_key_bytes = pub_key_der.subject_public_key.raw_bytes();
             match pub_key_der.algorithm.oid {
                 #[cfg(feature = "dilithium2")]
                 oids::DILITHIUM2 => {
-                    let cose_pk = cosey::Dilithium2PublicKey { pk: Bytes::from_slice(pub_key_bytes).unwrap() };
+                    let cose_pk = cosey::Dilithium2PublicKey {
+                        pk: Bytes::from_slice(pub_key_bytes).unwrap(),
+                    };
                     trussed::cbor_serialize_bytes(&cose_pk).map_err(|_| Error::CborError)?
                 }
                 #[cfg(feature = "dilithium3")]
                 oids::DILITHIUM3 => {
-                    let cose_pk = cosey::Dilithium3PublicKey { pk: Bytes::from_slice(pub_key_bytes).unwrap() };
+                    let cose_pk = cosey::Dilithium3PublicKey {
+                        pk: Bytes::from_slice(pub_key_bytes).unwrap(),
+                    };
                     trussed::cbor_serialize_bytes(&cose_pk).map_err(|_| Error::CborError)?
                 }
                 #[cfg(feature = "dilithium5")]
                 oids::DILITHIUM5 => {
-                    let cose_pk = cosey::Dilithium5PublicKey { pk: Bytes::from_slice(pub_key_bytes).unwrap() };
+                    let cose_pk = cosey::Dilithium5PublicKey {
+                        pk: Bytes::from_slice(pub_key_bytes).unwrap(),
+                    };
                     trussed::cbor_serialize_bytes(&cose_pk).map_err(|_| Error::CborError)?
                 }
-                _ => return Err(Error::WrongKeyKind)
+                _ => return Err(Error::WrongKeyKind),
             }
         }
 
