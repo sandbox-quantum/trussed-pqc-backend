@@ -3,8 +3,8 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-mod dilithium;
-pub use dilithium::SoftwareDilithium;
+mod mldsa;
+pub use mldsa::SoftwareMldsa;
 
 // For use in Trussed, max sizes that depend
 // on the selected features (algorithms).

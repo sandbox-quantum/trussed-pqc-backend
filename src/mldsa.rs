@@ -1,9 +1,6 @@
 // Copyright (C) SandboxAQ
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-// TODO: conditionally compile dilithium2/3/5
-// TODO: implement key injection
-
 extern crate alloc;
 
 use cosey;
@@ -27,38 +24,40 @@ use pkcs8::AlgorithmIdentifierRef;
 
 use pqcrypto::prelude::*;
 
-#[cfg(feature = "dilithium2")]
-use pqcrypto::sign::dilithium2;
-#[cfg(feature = "dilithium3")]
-use pqcrypto::sign::dilithium3;
-#[cfg(feature = "dilithium5")]
-use pqcrypto::sign::dilithium5;
+#[cfg(feature = "mldsa-44")]
+use pqcrypto::sign::mldsa44;
+#[cfg(feature = "mldsa-65")]
+use pqcrypto::sign::mldsa65;
+#[cfg(feature = "mldsa-87")]
+use pqcrypto::sign::mldsa87;
 
+// TODO: These are the old Dilithium 2/3/5 OIDs.
+// They should be replaced with the ML-DSA OIDs.
 mod oids {
-    #[cfg(feature = "dilithium2")]
-    pub const DILITHIUM2: pkcs8::ObjectIdentifier =
+    #[cfg(feature = "mldsa-44")]
+    pub const MLDSA44: pkcs8::ObjectIdentifier =
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.4.4");
-    #[cfg(feature = "dilithium3")]
-    pub const DILITHIUM3: pkcs8::ObjectIdentifier =
+    #[cfg(feature = "mldsa-65")]
+    pub const MLDSA65: pkcs8::ObjectIdentifier =
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.6.5");
-    #[cfg(feature = "dilithium5")]
-    pub const DILITHIUM5: pkcs8::ObjectIdentifier =
+    #[cfg(feature = "mldsa-87")]
+    pub const MLDSA87: pkcs8::ObjectIdentifier =
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.8.7");
 }
 
 fn request_kind(mechanism: &Mechanism) -> Result<key::Kind, Error> {
     match mechanism {
-        #[cfg(feature = "dilithium2")]
-        Mechanism::Dilithium2 => Ok(key::Kind::Dilithium2),
-        #[cfg(feature = "dilithium3")]
-        Mechanism::Dilithium3 => Ok(key::Kind::Dilithium3),
-        #[cfg(feature = "dilithium5")]
-        Mechanism::Dilithium5 => Ok(key::Kind::Dilithium5),
+        #[cfg(feature = "mldsa-44")]
+        Mechanism::Mldsa44 => Ok(key::Kind::Mldsa44),
+        #[cfg(feature = "mldsa-65")]
+        Mechanism::Mldsa65 => Ok(key::Kind::Mldsa65),
+        #[cfg(feature = "mldsa-87")]
+        Mechanism::Mldsa87 => Ok(key::Kind::Mldsa87),
         _ => Err(Error::RequestNotAvailable),
     }
 }
 
-fn store_key_dilithium(
+fn store_key_mldsa(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
     oid: pkcs8::ObjectIdentifier,
@@ -76,7 +75,7 @@ fn store_key_dilithium(
 
     let priv_key_der_bytes = priv_key_pkcs8
         .to_der()
-        .expect("Failed to encode Dilithium private key PKCS#8 to DER");
+        .expect("Failed to encode ML-DSA private key PKCS#8 to DER");
 
     let priv_key_id = keystore.store_key(
         request.attributes.persistence,
@@ -88,44 +87,44 @@ fn store_key_dilithium(
     Ok(reply::GenerateKey { key: priv_key_id })
 }
 
-#[cfg(feature = "dilithium2")]
-fn generate_key_dilithium2(
+#[cfg(feature = "mldsa-44")]
+fn generate_key_mldsa_44(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
 ) -> Result<reply::GenerateKey, Error> {
-    let (pub_key, priv_key) = dilithium2::keypair();
-    store_key_dilithium(
+    let (pub_key, priv_key) = mldsa44::keypair();
+    store_key_mldsa(
         keystore,
         request,
-        oids::DILITHIUM2,
+        oids::MLDSA44,
         pub_key.as_bytes(),
         priv_key.as_bytes(),
     )
 }
-#[cfg(feature = "dilithium3")]
-fn generate_key_dilithium3(
+#[cfg(feature = "mldsa-65")]
+fn generate_key_mldsa_65(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
 ) -> Result<reply::GenerateKey, Error> {
-    let (pub_key, priv_key) = dilithium3::keypair();
-    store_key_dilithium(
+    let (pub_key, priv_key) = mldsa65::keypair();
+    store_key_mldsa(
         keystore,
         request,
-        oids::DILITHIUM3,
+        oids::MLDSA65,
         pub_key.as_bytes(),
         priv_key.as_bytes(),
     )
 }
-#[cfg(feature = "dilithium5")]
-fn generate_key_dilithium5(
+#[cfg(feature = "mldsa-87")]
+fn generate_key_mldsa_87(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
 ) -> Result<reply::GenerateKey, Error> {
-    let (pub_key, priv_key) = dilithium5::keypair();
-    store_key_dilithium(
+    let (pub_key, priv_key) = mldsa87::keypair();
+    store_key_mldsa(
         keystore,
         request,
-        oids::DILITHIUM5,
+        oids::MLDSA87,
         pub_key.as_bytes(),
         priv_key.as_bytes(),
     )
@@ -136,12 +135,12 @@ fn generate_key(
     request: &request::GenerateKey,
 ) -> Result<reply::GenerateKey, Error> {
     match request.mechanism {
-        #[cfg(feature = "dilithium2")]
-        Mechanism::Dilithium2 => generate_key_dilithium2(keystore, request),
-        #[cfg(feature = "dilithium3")]
-        Mechanism::Dilithium3 => generate_key_dilithium3(keystore, request),
-        #[cfg(feature = "dilithium5")]
-        Mechanism::Dilithium5 => generate_key_dilithium5(keystore, request),
+        #[cfg(feature = "mldsa-44")]
+        Mechanism::Mldsa44 => generate_key_mldsa_44(keystore, request),
+        #[cfg(feature = "mldsa-65")]
+        Mechanism::Mldsa65 => generate_key_mldsa_65(keystore, request),
+        #[cfg(feature = "mldsa-87")]
+        Mechanism::Mldsa87 => generate_key_mldsa_87(keystore, request),
         _ => Err(Error::RequestNotAvailable),
     }
 }
@@ -159,11 +158,11 @@ fn derive_key(
             Some(request_kind(&request.mechanism)?),
             base_key_id,
         )
-        .expect("Failed to load a Dilithium private key with the given ID")
+        .expect("Failed to load a ML-DSA private key with the given ID")
         .material;
 
     let priv_key_pkcs8 = pkcs8::PrivateKeyInfo::from_der(&priv_key_der_bytes[..])
-        .expect("Failed to decode DER for Dilithium private key");
+        .expect("Failed to decode DER for ML-DSA private key");
 
     let pub_key_pkcs8 = pkcs8::SubjectPublicKeyInfoRef {
         algorithm: priv_key_pkcs8.algorithm,
@@ -172,7 +171,7 @@ fn derive_key(
     };
     let pub_key_der_bytes = pub_key_pkcs8
         .to_der()
-        .expect("Failed to encode Dilithium public key PKCS#8 to DER");
+        .expect("Failed to encode ML-DSA public key PKCS#8 to DER");
 
     let pub_key_id = keystore.store_key(
         request.attributes.persistence,
@@ -198,7 +197,7 @@ fn serialize_key(
             Some(request_kind(&request.mechanism)?),
             &key_id,
         )
-        .unwrap_or_else(|_| panic!("Failed to load a Dilithium public key with the given ID"))
+        .unwrap_or_else(|_| panic!("Failed to load a ML-DSA public key with the given ID"))
         .material;
 
     let serialized_key: Bytes<MAX_SERIALIZED_KEY_LENGTH> = match request.format {
@@ -207,23 +206,23 @@ fn serialize_key(
                 .map_err(|_| Error::InvalidSerializationFormat)?;
             let pub_key_bytes = pub_key_der.subject_public_key.raw_bytes();
             match pub_key_der.algorithm.oid {
-                #[cfg(feature = "dilithium2")]
-                oids::DILITHIUM2 => {
-                    let cose_pk = cosey::Dilithium2PublicKey {
+                #[cfg(feature = "mldsa-44")]
+                oids::MLDSA44 => {
+                    let cose_pk = cosey::Mldsa44PublicKey {
                         pk: Bytes::from_slice(pub_key_bytes).unwrap(),
                     };
                     trussed::cbor_serialize_bytes(&cose_pk).map_err(|_| Error::CborError)?
                 }
-                #[cfg(feature = "dilithium3")]
-                oids::DILITHIUM3 => {
-                    let cose_pk = cosey::Dilithium3PublicKey {
+                #[cfg(feature = "mldsa-65")]
+                oids::MLDSA65 => {
+                    let cose_pk = cosey::Mldsa65PublicKey {
                         pk: Bytes::from_slice(pub_key_bytes).unwrap(),
                     };
                     trussed::cbor_serialize_bytes(&cose_pk).map_err(|_| Error::CborError)?
                 }
-                #[cfg(feature = "dilithium5")]
-                oids::DILITHIUM5 => {
-                    let cose_pk = cosey::Dilithium5PublicKey {
+                #[cfg(feature = "mldsa-87")]
+                oids::MLDSA87 => {
+                    let cose_pk = cosey::Mldsa87PublicKey {
                         pk: Bytes::from_slice(pub_key_bytes).unwrap(),
                     };
                     trussed::cbor_serialize_bytes(&cose_pk).map_err(|_| Error::CborError)?
@@ -254,19 +253,19 @@ fn deserialize_pkcs_key(
 
     // TODO: check key lengths for each of these
     match pub_key.algorithm.oid {
-        #[cfg(feature = "dilithium2")]
-        oids::DILITHIUM2 => {}
-        #[cfg(feature = "dilithium3")]
-        oids::DILITHIUM3 => {}
-        #[cfg(feature = "dilithium5")]
-        oids::DILITHIUM5 => {}
+        #[cfg(feature = "mldsa-44")]
+        oids::MLDSA44 => {}
+        #[cfg(feature = "mldsa-65")]
+        oids::MLDSA65 => {}
+        #[cfg(feature = "mldsa-87")]
+        oids::MLDSA87 => {}
         _ => return Err(Error::InvalidSerializationFormat),
     }
 
     // We store our keys in PKCS#8 DER format
     let pub_key_der = pub_key
         .to_der()
-        .unwrap_or_else(|_| panic!("Failed to serialize a Dilithium public key to PKCS#8 DER"));
+        .unwrap_or_else(|_| panic!("Failed to serialize a ML-DSA public key to PKCS#8 DER"));
 
     let pub_key_id = keystore.store_key(
         request.attributes.persistence,
@@ -287,16 +286,16 @@ fn deserialize_key(
         // TODO: complete
         // KeySerialization::Cose => {
         //     let pk: Result<Bytes, Error> = match request.mechanism {
-        //         Mechanism::Dilithium2 => {
-        //             let cose_public_key: cosey::Dilithium2PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
+        //         Mechanism::Mldsa44 => {
+        //             let cose_public_key: cosey::Mldsa44PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
         //             cose_public_key.into()
         //         }
-        //         Mechanism::Dilithium3 => {
-        //             let cose_public_key: cosey::Dilithium3PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
+        //         Mechanism::Mldsa65 => {
+        //             let cose_public_key: cosey::Mldsa65PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
         //             cose_public_key.into()
         //         }
-        //         Mechanism::Dilithium5 => {
-        //             let cose_public_key: cosey::Dilithium5PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
+        //         Mechanism::Mldsa87 => {
+        //             let cose_public_key: cosey::Mldsa87PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
         //             cose_public_key.into()
         //         }
         //         _ => Err(Error::RequestNotAvailable),
@@ -349,39 +348,39 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
             Some(request_kind(&request.mechanism)?),
             &key_id,
         )
-        .expect("Failed to load a Dilithium private key with the given ID")
+        .expect("Failed to load a ML-DSA private key with the given ID")
         .material;
 
     let priv_key_pkcs8 = pkcs8::PrivateKeyInfo::from_der(&priv_key_der[..])
-        .expect("Failed to decode Dilithium PKCS#8 from DER");
+        .expect("Failed to decode ML-DSA PKCS#8 from DER");
 
     // TODO: check if this is returning just the signature, or the signed message
     match request.mechanism {
-        #[cfg(feature = "dilithium2")]
-        Mechanism::Dilithium2 => {
-            let priv_key = dilithium2::SecretKey::from_bytes(priv_key_pkcs8.private_key)
-                .expect("Failed to load Dilithium key from PKCS#8");
-            let signed_message = dilithium2::detached_sign(&request.message, &priv_key);
+        #[cfg(feature = "mldsa-44")]
+        Mechanism::Mldsa44 => {
+            let priv_key = mldsa44::SecretKey::from_bytes(priv_key_pkcs8.private_key)
+                .expect("Failed to load ML-DSA key from PKCS#8");
+            let signed_message = mldsa44::detached_sign(&request.message, &priv_key);
             return Ok(reply::Sign {
                 signature: Signature::from_slice(signed_message.as_bytes())
                     .expect("Failed to build signature from signed message bytes"),
             });
         }
-        #[cfg(feature = "dilithium3")]
-        Mechanism::Dilithium3 => {
-            let priv_key = dilithium3::SecretKey::from_bytes(priv_key_pkcs8.private_key)
-                .expect("Failed to load Dilithium key from PKCS#8");
-            let signed_message = dilithium3::detached_sign(&request.message, &priv_key);
+        #[cfg(feature = "mldsa-65")]
+        Mechanism::Mldsa65 => {
+            let priv_key = mldsa65::SecretKey::from_bytes(priv_key_pkcs8.private_key)
+                .expect("Failed to load ML-DSA key from PKCS#8");
+            let signed_message = mldsa65::detached_sign(&request.message, &priv_key);
             return Ok(reply::Sign {
                 signature: Signature::from_slice(signed_message.as_bytes())
                     .expect("Failed to build signature from signed message bytes"),
             });
         }
-        #[cfg(feature = "dilithium5")]
-        Mechanism::Dilithium5 => {
-            let priv_key = dilithium5::SecretKey::from_bytes(priv_key_pkcs8.private_key)
-                .expect("Failed to load Dilithium key from PKCS#8");
-            let signed_message = dilithium5::detached_sign(&request.message, &priv_key);
+        #[cfg(feature = "mldsa-87")]
+        Mechanism::Mldsa87 => {
+            let priv_key = mldsa87::SecretKey::from_bytes(priv_key_pkcs8.private_key)
+                .expect("Failed to load ML-DSA key from PKCS#8");
+            let signed_message = mldsa87::detached_sign(&request.message, &priv_key);
             return Ok(reply::Sign {
                 signature: Signature::from_slice(signed_message.as_bytes())
                     .expect("Failed to build signature from signed message bytes"),
@@ -405,11 +404,11 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
             Some(request_kind(&request.mechanism)?),
             &key_id,
         )
-        .unwrap_or_else(|_| panic!("Failed to load a Dilithium public key with the given ID"))
+        .unwrap_or_else(|_| panic!("Failed to load a ML-DSA public key with the given ID"))
         .material;
 
     let pub_key_pkcs8 = pkcs8::SubjectPublicKeyInfoRef::from_der(&pub_key_der[..])
-        .expect("Failed to decode Dilithium PKCS#8 from DER");
+        .expect("Failed to decode ML-DSA PKCS#8 from DER");
 
     let pub_key_bytes = match pub_key_pkcs8.subject_public_key.as_bytes() {
         Some(b) => b,
@@ -417,47 +416,44 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
     };
 
     match request.mechanism {
-        #[cfg(feature = "dilithium2")]
-        Mechanism::Dilithium2 => {
-            let pub_key = dilithium2::PublicKey::from_bytes(pub_key_bytes)
-                .expect("Failed to load Dilithium public key");
-            let sig = match dilithium2::DetachedSignature::from_bytes(request.signature.as_slice())
-            {
+        #[cfg(feature = "mldsa-44")]
+        Mechanism::Mldsa44 => {
+            let pub_key = mldsa44::PublicKey::from_bytes(pub_key_bytes)
+                .expect("Failed to load ML-DSA public key");
+            let sig = match mldsa44::DetachedSignature::from_bytes(request.signature.as_slice()) {
                 Ok(sig) => sig,
                 Err(_) => return Err(Error::WrongSignatureLength),
             };
             let verification_ok =
-                dilithium2::verify_detached_signature(&sig, &request.message, &pub_key).is_ok();
+                mldsa44::verify_detached_signature(&sig, &request.message, &pub_key).is_ok();
             Ok(reply::Verify {
                 valid: verification_ok,
             })
         }
-        #[cfg(feature = "dilithium3")]
-        Mechanism::Dilithium3 => {
-            let pub_key = dilithium3::PublicKey::from_bytes(pub_key_bytes)
-                .expect("Failed to load Dilithium public key");
-            let sig = match dilithium3::DetachedSignature::from_bytes(request.signature.as_slice())
-            {
+        #[cfg(feature = "mldsa-65")]
+        Mechanism::Mldsa65 => {
+            let pub_key = mldsa65::PublicKey::from_bytes(pub_key_bytes)
+                .expect("Failed to load ML-DSA public key");
+            let sig = match mldsa65::DetachedSignature::from_bytes(request.signature.as_slice()) {
                 Ok(sig) => sig,
                 Err(_) => return Err(Error::WrongSignatureLength),
             };
             let verification_ok =
-                dilithium3::verify_detached_signature(&sig, &request.message, &pub_key).is_ok();
+                mldsa65::verify_detached_signature(&sig, &request.message, &pub_key).is_ok();
             Ok(reply::Verify {
                 valid: verification_ok,
             })
         }
-        #[cfg(feature = "dilithium5")]
-        Mechanism::Dilithium5 => {
-            let pub_key = dilithium5::PublicKey::from_bytes(pub_key_bytes)
-                .expect("Failed to load Dilithium public key");
-            let sig = match dilithium5::DetachedSignature::from_bytes(request.signature.as_slice())
-            {
+        #[cfg(feature = "mldsa-87")]
+        Mechanism::Mldsa87 => {
+            let pub_key = mldsa87::PublicKey::from_bytes(pub_key_bytes)
+                .expect("Failed to load ML-DSA public key");
+            let sig = match mldsa87::DetachedSignature::from_bytes(request.signature.as_slice()) {
                 Ok(sig) => sig,
                 Err(_) => return Err(Error::WrongSignatureLength),
             };
             let verification_ok =
-                dilithium5::verify_detached_signature(&sig, &request.message, &pub_key).is_ok();
+                mldsa87::verify_detached_signature(&sig, &request.message, &pub_key).is_ok();
             Ok(reply::Verify {
                 valid: verification_ok,
             })
@@ -465,9 +461,9 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
         _ => Err(Error::RequestNotAvailable),
     }
 }
-pub struct SoftwareDilithium;
+pub struct SoftwareMldsa;
 
-impl Backend for SoftwareDilithium {
+impl Backend for SoftwareMldsa {
     type Context = ();
     fn request<P: Platform>(
         &mut self,

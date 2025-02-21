@@ -1,13 +1,13 @@
 // Copyright (C) Nitrokey GmbH and SandboxAQ
 // SPDX-License-Identifier: Apache-2.0 or MIT
 
-//! Wrapper around [`trussed::virt`][] that provides clients with both the core backend and the [`SoftwareDilithium`](crate::SoftwareDilithium) backend.
+//! Wrapper around [`trussed::virt`][] that provides clients with both the core backend and the [`SoftwareMldsa`](crate::SoftwareMldsa) backend.
 
-use crate::SoftwareDilithium;
+use crate::SoftwareMldsa;
 
 pub struct Dispatcher;
 pub enum BackendIds {
-    SoftwareDilithium,
+    SoftwareMldsa,
 }
 impl Dispatch for Dispatcher {
     type BackendId = BackendIds;
@@ -19,7 +19,7 @@ impl Dispatch for Dispatcher {
         request: &trussed::api::Request,
         resources: &mut trussed::service::ServiceResources<P>,
     ) -> Result<trussed::Reply, trussed::Error> {
-        SoftwareDilithium.request(&mut ctx.core, &mut ctx.backends, request, resources)
+        SoftwareMldsa.request(&mut ctx.core, &mut ctx.backends, request, resources)
     }
 }
 
@@ -42,7 +42,7 @@ where
             client_id,
             Dispatcher,
             &[
-                BackendId::Custom(BackendIds::SoftwareDilithium),
+                BackendId::Custom(BackendIds::SoftwareMldsa),
                 BackendId::Core,
             ],
             f,
