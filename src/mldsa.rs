@@ -4,11 +4,15 @@
 extern crate alloc;
 
 use cosey;
+use der::asn1::BitStringRef;
 use der::{Decode, Encode};
+use pkcs8::AlgorithmIdentifierRef;
+use pqcrypto_traits::sign::DetachedSignature;
+use pqcrypto_traits::sign::PublicKey;
+use pqcrypto_traits::sign::SecretKey;
 use trussed::{
     api::{reply, request, Reply, Request},
     backend::Backend,
-    config::MAX_SERIALIZED_KEY_LENGTH,
     key,
     platform::Platform,
     service::{Keystore, ServiceResources},
@@ -18,40 +22,37 @@ use trussed::{
     },
     Error,
 };
+use trussed_core::config::MAX_SERIALIZED_KEY_LENGTH;
+//use pqcrypto::prelude::*;
 
-use der::asn1::BitStringRef;
-use pkcs8::AlgorithmIdentifierRef;
-
-use pqcrypto::prelude::*;
-
-#[cfg(feature = "mldsa-44")]
-use pqcrypto::sign::mldsa44;
-#[cfg(feature = "mldsa-65")]
-use pqcrypto::sign::mldsa65;
-#[cfg(feature = "mldsa-87")]
-use pqcrypto::sign::mldsa87;
+#[cfg(feature = "mldsa44")]
+use pqcrypto_mldsa::mldsa44;
+#[cfg(feature = "mldsa65")]
+use pqcrypto_mldsa::mldsa65;
+#[cfg(feature = "mldsa87")]
+use pqcrypto_mldsa::mldsa87;
 
 // TODO: These are the old Dilithium 2/3/5 OIDs.
 // They should be replaced with the ML-DSA OIDs.
 mod oids {
-    #[cfg(feature = "mldsa-44")]
+    #[cfg(feature = "mldsa44")]
     pub const MLDSA44: pkcs8::ObjectIdentifier =
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.4.4");
-    #[cfg(feature = "mldsa-65")]
+    #[cfg(feature = "mldsa65")]
     pub const MLDSA65: pkcs8::ObjectIdentifier =
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.6.5");
-    #[cfg(feature = "mldsa-87")]
+    #[cfg(feature = "mldsa87")]
     pub const MLDSA87: pkcs8::ObjectIdentifier =
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.8.7");
 }
 
 fn request_kind(mechanism: &Mechanism) -> Result<key::Kind, Error> {
     match mechanism {
-        #[cfg(feature = "mldsa-44")]
+        #[cfg(feature = "mldsa44")]
         Mechanism::Mldsa44 => Ok(key::Kind::Mldsa44),
-        #[cfg(feature = "mldsa-65")]
+        #[cfg(feature = "mldsa65")]
         Mechanism::Mldsa65 => Ok(key::Kind::Mldsa65),
-        #[cfg(feature = "mldsa-87")]
+        #[cfg(feature = "mldsa87")]
         Mechanism::Mldsa87 => Ok(key::Kind::Mldsa87),
         _ => Err(Error::RequestNotAvailable),
     }
@@ -87,7 +88,7 @@ fn store_key_mldsa(
     Ok(reply::GenerateKey { key: priv_key_id })
 }
 
-#[cfg(feature = "mldsa-44")]
+#[cfg(feature = "mldsa44")]
 fn generate_key_mldsa_44(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
@@ -101,7 +102,7 @@ fn generate_key_mldsa_44(
         priv_key.as_bytes(),
     )
 }
-#[cfg(feature = "mldsa-65")]
+#[cfg(feature = "mldsa65")]
 fn generate_key_mldsa_65(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
@@ -115,7 +116,7 @@ fn generate_key_mldsa_65(
         priv_key.as_bytes(),
     )
 }
-#[cfg(feature = "mldsa-87")]
+#[cfg(feature = "mldsa87")]
 fn generate_key_mldsa_87(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
@@ -135,11 +136,11 @@ fn generate_key(
     request: &request::GenerateKey,
 ) -> Result<reply::GenerateKey, Error> {
     match request.mechanism {
-        #[cfg(feature = "mldsa-44")]
+        #[cfg(feature = "mldsa44")]
         Mechanism::Mldsa44 => generate_key_mldsa_44(keystore, request),
-        #[cfg(feature = "mldsa-65")]
+        #[cfg(feature = "mldsa65")]
         Mechanism::Mldsa65 => generate_key_mldsa_65(keystore, request),
-        #[cfg(feature = "mldsa-87")]
+        #[cfg(feature = "mldsa87")]
         Mechanism::Mldsa87 => generate_key_mldsa_87(keystore, request),
         _ => Err(Error::RequestNotAvailable),
     }
@@ -206,21 +207,21 @@ fn serialize_key(
                 .map_err(|_| Error::InvalidSerializationFormat)?;
             let pub_key_bytes = pub_key_der.subject_public_key.raw_bytes();
             match pub_key_der.algorithm.oid {
-                #[cfg(feature = "mldsa-44")]
+                #[cfg(feature = "mldsa44")]
                 oids::MLDSA44 => {
                     let cose_pk = cosey::Mldsa44PublicKey {
                         pk: Bytes::from_slice(pub_key_bytes).unwrap(),
                     };
                     trussed::cbor_serialize_bytes(&cose_pk).map_err(|_| Error::CborError)?
                 }
-                #[cfg(feature = "mldsa-65")]
+                #[cfg(feature = "mldsa65")]
                 oids::MLDSA65 => {
                     let cose_pk = cosey::Mldsa65PublicKey {
                         pk: Bytes::from_slice(pub_key_bytes).unwrap(),
                     };
                     trussed::cbor_serialize_bytes(&cose_pk).map_err(|_| Error::CborError)?
                 }
-                #[cfg(feature = "mldsa-87")]
+                #[cfg(feature = "mldsa87")]
                 oids::MLDSA87 => {
                     let cose_pk = cosey::Mldsa87PublicKey {
                         pk: Bytes::from_slice(pub_key_bytes).unwrap(),
@@ -253,11 +254,11 @@ fn deserialize_pkcs_key(
 
     // TODO: check key lengths for each of these
     match pub_key.algorithm.oid {
-        #[cfg(feature = "mldsa-44")]
+        #[cfg(feature = "mldsa44")]
         oids::MLDSA44 => {}
-        #[cfg(feature = "mldsa-65")]
+        #[cfg(feature = "mldsa65")]
         oids::MLDSA65 => {}
-        #[cfg(feature = "mldsa-87")]
+        #[cfg(feature = "mldsa87")]
         oids::MLDSA87 => {}
         _ => return Err(Error::InvalidSerializationFormat),
     }
@@ -356,7 +357,7 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
 
     // TODO: check if this is returning just the signature, or the signed message
     match request.mechanism {
-        #[cfg(feature = "mldsa-44")]
+        #[cfg(feature = "mldsa44")]
         Mechanism::Mldsa44 => {
             let priv_key = mldsa44::SecretKey::from_bytes(priv_key_pkcs8.private_key)
                 .expect("Failed to load ML-DSA key from PKCS#8");
@@ -366,7 +367,7 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
                     .expect("Failed to build signature from signed message bytes"),
             });
         }
-        #[cfg(feature = "mldsa-65")]
+        #[cfg(feature = "mldsa65")]
         Mechanism::Mldsa65 => {
             let priv_key = mldsa65::SecretKey::from_bytes(priv_key_pkcs8.private_key)
                 .expect("Failed to load ML-DSA key from PKCS#8");
@@ -376,7 +377,7 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
                     .expect("Failed to build signature from signed message bytes"),
             });
         }
-        #[cfg(feature = "mldsa-87")]
+        #[cfg(feature = "mldsa87")]
         Mechanism::Mldsa87 => {
             let priv_key = mldsa87::SecretKey::from_bytes(priv_key_pkcs8.private_key)
                 .expect("Failed to load ML-DSA key from PKCS#8");
@@ -416,7 +417,7 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
     };
 
     match request.mechanism {
-        #[cfg(feature = "mldsa-44")]
+        #[cfg(feature = "mldsa44")]
         Mechanism::Mldsa44 => {
             let pub_key = mldsa44::PublicKey::from_bytes(pub_key_bytes)
                 .expect("Failed to load ML-DSA public key");
@@ -430,7 +431,7 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
                 valid: verification_ok,
             })
         }
-        #[cfg(feature = "mldsa-65")]
+        #[cfg(feature = "mldsa65")]
         Mechanism::Mldsa65 => {
             let pub_key = mldsa65::PublicKey::from_bytes(pub_key_bytes)
                 .expect("Failed to load ML-DSA public key");
@@ -444,7 +445,7 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
                 valid: verification_ok,
             })
         }
-        #[cfg(feature = "mldsa-87")]
+        #[cfg(feature = "mldsa87")]
         Mechanism::Mldsa87 => {
             let pub_key = mldsa87::PublicKey::from_bytes(pub_key_bytes)
                 .expect("Failed to load ML-DSA public key");

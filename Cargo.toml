@@ -15,6 +15,7 @@ pkcs8 = {version = "0.10.2", features = ["alloc"]}
 # TODO: update this
 #trussed = { git = "https://github.com/Nitrokey/trussed.git", tag = "v0.1.0-nitrokey.23" } 
 trussed = {path = "../trussed" }
+trussed-core = {path = "../trussed/core" }
 serde-big-array = "0.5.1"
 pqcrypto = "0.17.0"
 pqcrypto-mldsa = "0.1.0"
@@ -35,6 +36,6 @@ virt = ["std", "trussed/virt"]
 std = []
 
 # Algorithms to enable
-mldsa-44 = ["trussed/backend-mldsa-44", "cosey/backend-mldsa-44"]
-mldsa-65 = ["trussed/backend-mldsa-65", "cosey/backend-mldsa-65"]
-mldsa-87 = ["trussed/backend-mldsa-87", "cosey/backend-mldsa-87"]
+mldsa44 = ["trussed/mldsa44", "cosey/mldsa44"]
+mldsa65 = ["trussed/mldsa65", "cosey/mldsa65"]
+mldsa87 = ["trussed/mldsa87", "cosey/mldsa87"]
