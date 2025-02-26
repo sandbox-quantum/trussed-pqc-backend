@@ -17,8 +17,8 @@ pkcs8 = {version = "0.10.2", features = ["alloc"]}
 trussed = {path = "../trussed" }
 trussed-core = {path = "../trussed/core" }
 serde-big-array = "0.5.1"
-pqcrypto = "0.17.0"
 pqcrypto-mldsa = "0.1.0"
+pqcrypto-traits = "0.3.5"
 cosey = "0.3"
 
 [dev-dependencies]
