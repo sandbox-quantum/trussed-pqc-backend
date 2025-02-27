@@ -23,7 +23,6 @@ use trussed::{
     Error,
 };
 use trussed_core::config::MAX_SERIALIZED_KEY_LENGTH;
-//use pqcrypto::prelude::*;
 
 #[cfg(feature = "mldsa44")]
 use pqcrypto_mldsa::mldsa44;
