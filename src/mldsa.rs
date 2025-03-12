@@ -45,7 +45,7 @@ mod oids {
         pkcs8::ObjectIdentifier::new_unwrap("1.3.6.1.4.1.2.267.7.8.7");
 }
 
-fn request_kind(mechanism: &Mechanism) -> Result<key::Kind, Error> {
+fn request_kind(mechanism: Mechanism) -> Result<key::Kind, Error> {
     match mechanism {
         #[cfg(feature = "mldsa44")]
         Mechanism::Mldsa44 => Ok(key::Kind::Mldsa44),
@@ -60,6 +60,7 @@ fn request_kind(mechanism: &Mechanism) -> Result<key::Kind, Error> {
 fn store_key_mldsa(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
+    kind: key::Kind,
     oid: pkcs8::ObjectIdentifier,
     pub_key_bytes: &[u8],
     priv_key_bytes: &[u8],
@@ -80,7 +81,7 @@ fn store_key_mldsa(
     let priv_key_id = keystore.store_key(
         request.attributes.persistence,
         key::Secrecy::Secret,
-        key::Info::from(request_kind(&request.mechanism)?).with_local_flag(),
+        key::Info::from(kind).with_local_flag(),
         &priv_key_der_bytes[..],
     )?;
 
@@ -91,11 +92,13 @@ fn store_key_mldsa(
 fn generate_key_mldsa_44(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
+    kind: key::Kind,
 ) -> Result<reply::GenerateKey, Error> {
     let (pub_key, priv_key) = mldsa44::keypair();
     store_key_mldsa(
         keystore,
         request,
+        kind,
         oids::MLDSA44,
         pub_key.as_bytes(),
         priv_key.as_bytes(),
@@ -105,11 +108,13 @@ fn generate_key_mldsa_44(
 fn generate_key_mldsa_65(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
+    kind: key::Kind,
 ) -> Result<reply::GenerateKey, Error> {
     let (pub_key, priv_key) = mldsa65::keypair();
     store_key_mldsa(
         keystore,
         request,
+        kind,
         oids::MLDSA65,
         pub_key.as_bytes(),
         priv_key.as_bytes(),
@@ -119,11 +124,13 @@ fn generate_key_mldsa_65(
 fn generate_key_mldsa_87(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
+    kind: key::Kind,
 ) -> Result<reply::GenerateKey, Error> {
     let (pub_key, priv_key) = mldsa87::keypair();
     store_key_mldsa(
         keystore,
         request,
+        kind,
         oids::MLDSA87,
         pub_key.as_bytes(),
         priv_key.as_bytes(),
@@ -133,14 +140,15 @@ fn generate_key_mldsa_87(
 fn generate_key(
     keystore: &mut impl Keystore,
     request: &request::GenerateKey,
+    kind: key::Kind,
 ) -> Result<reply::GenerateKey, Error> {
-    match request.mechanism {
+    match kind {
         #[cfg(feature = "mldsa44")]
-        Mechanism::Mldsa44 => generate_key_mldsa_44(keystore, request),
+        key::Kind::Mldsa44 => generate_key_mldsa_44(keystore, request, kind),
         #[cfg(feature = "mldsa65")]
-        Mechanism::Mldsa65 => generate_key_mldsa_65(keystore, request),
+        key::Kind::Mldsa65 => generate_key_mldsa_65(keystore, request, kind),
         #[cfg(feature = "mldsa87")]
-        Mechanism::Mldsa87 => generate_key_mldsa_87(keystore, request),
+        key::Kind::Mldsa87 => generate_key_mldsa_87(keystore, request, kind),
         _ => Err(Error::RequestNotAvailable),
     }
 }
@@ -148,6 +156,7 @@ fn generate_key(
 fn derive_key(
     keystore: &mut impl Keystore,
     request: &request::DeriveKey,
+    kind: key::Kind,
 ) -> Result<reply::DeriveKey, Error> {
     // Retrieve private key
     let base_key_id = &request.base_key;
@@ -155,7 +164,7 @@ fn derive_key(
     let priv_key_der_bytes = keystore
         .load_key(
             key::Secrecy::Secret,
-            Some(request_kind(&request.mechanism)?),
+            Some(kind),
             base_key_id,
         )
         .expect("Failed to load a ML-DSA private key with the given ID")
@@ -176,7 +185,7 @@ fn derive_key(
     let pub_key_id = keystore.store_key(
         request.attributes.persistence,
         key::Secrecy::Public,
-        request_kind(&request.mechanism)?,
+        kind,
         &pub_key_der_bytes[..],
     )?;
 
@@ -186,6 +195,7 @@ fn derive_key(
 fn serialize_key(
     keystore: &mut impl Keystore,
     request: &request::SerializeKey,
+    kind: key::Kind,
 ) -> Result<reply::SerializeKey, Error> {
     let key_id = request.key;
 
@@ -194,7 +204,7 @@ fn serialize_key(
     let pub_key_der = keystore
         .load_key(
             key::Secrecy::Public,
-            Some(request_kind(&request.mechanism)?),
+            Some(kind),
             &key_id,
         )
         .unwrap_or_else(|_| panic!("Failed to load a ML-DSA public key with the given ID"))
@@ -247,6 +257,7 @@ fn serialize_key(
 fn deserialize_pkcs_key(
     keystore: &mut impl Keystore,
     request: &request::DeserializeKey,
+    kind: key::Kind,
 ) -> Result<reply::DeserializeKey, Error> {
     let pub_key = pkcs8::SubjectPublicKeyInfoRef::from_der(&request.serialized_key)
         .map_err(|_| Error::InvalidSerializationFormat)?;
@@ -270,7 +281,7 @@ fn deserialize_pkcs_key(
     let pub_key_id = keystore.store_key(
         request.attributes.persistence,
         key::Secrecy::Public,
-        request_kind(&request.mechanism)?,
+        kind,
         pub_key_der.as_ref(),
     )?;
 
@@ -280,9 +291,10 @@ fn deserialize_pkcs_key(
 fn deserialize_key(
     keystore: &mut impl Keystore,
     request: &request::DeserializeKey,
+    kind: key::Kind,
 ) -> Result<reply::DeserializeKey, Error> {
     match request.format {
-        KeySerialization::Pkcs8Der => deserialize_pkcs_key(keystore, request),
+        KeySerialization::Pkcs8Der => deserialize_pkcs_key(keystore, request, kind),
         // TODO: complete
         // KeySerialization::Cose => {
         //     let pk: Result<Bytes, Error> = match request.mechanism {
@@ -328,24 +340,24 @@ fn deserialize_key(
     }
 }
 
-fn exists(keystore: &mut impl Keystore, request: &request::Exists) -> Result<reply::Exists, Error> {
+fn exists(keystore: &mut impl Keystore, request: &request::Exists, kind: key::Kind) -> Result<reply::Exists, Error> {
     let key_id = request.key;
 
     let exists = keystore.exists_key(
         key::Secrecy::Secret,
-        Some(request_kind(&request.mechanism)?),
+        Some(kind),
         &key_id,
     );
     Ok(reply::Exists { exists })
 }
 
-fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::Sign, Error> {
+fn sign(keystore: &mut impl Keystore, request: &request::Sign, kind: key::Kind) -> Result<reply::Sign, Error> {
     let key_id = request.key;
 
     let priv_key_der = keystore
         .load_key(
             key::Secrecy::Secret,
-            Some(request_kind(&request.mechanism)?),
+            Some(kind),
             &key_id,
         )
         .expect("Failed to load a ML-DSA private key with the given ID")
@@ -390,7 +402,7 @@ fn sign(keystore: &mut impl Keystore, request: &request::Sign) -> Result<reply::
     }
 }
 
-fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<reply::Verify, Error> {
+fn verify(keystore: &mut impl Keystore, request: &request::Verify, kind: key::Kind) -> Result<reply::Verify, Error> {
     if let SignatureSerialization::Raw = request.format {
     } else {
         return Err(Error::InvalidSerializationFormat);
@@ -401,7 +413,7 @@ fn verify(keystore: &mut impl Keystore, request: &request::Verify) -> Result<rep
     let pub_key_der = keystore
         .load_key(
             key::Secrecy::Public,
-            Some(request_kind(&request.mechanism)?),
+            Some(kind),
             &key_id,
         )
         .unwrap_or_else(|_| panic!("Failed to load a ML-DSA public key with the given ID"))
@@ -472,19 +484,38 @@ impl Backend for SoftwareMldsa {
         request: &Request,
         resources: &mut ServiceResources<P>,
     ) -> Result<Reply, Error> {
+        
+        
         let mut keystore = resources.keystore(core_ctx.path.clone())?;
         match request {
-            Request::DeriveKey(req) => derive_key(&mut keystore, req).map(Reply::DeriveKey),
+            Request::DeriveKey(req) => {
+                let kind = request_kind(req.mechanism)?;
+                derive_key(&mut keystore, req, kind).map(Reply::DeriveKey)
+            },
             Request::DeserializeKey(req) => {
-                deserialize_key(&mut keystore, req).map(Reply::DeserializeKey)
+                let kind = request_kind(req.mechanism)?;
+                deserialize_key(&mut keystore, req, kind).map(Reply::DeserializeKey)
             }
             Request::SerializeKey(req) => {
-                serialize_key(&mut keystore, req).map(Reply::SerializeKey)
+                let kind = request_kind(req.mechanism)?;
+                serialize_key(&mut keystore, req, kind).map(Reply::SerializeKey)
             }
-            Request::GenerateKey(req) => generate_key(&mut keystore, req).map(Reply::GenerateKey),
-            Request::Sign(req) => sign(&mut keystore, req).map(Reply::Sign),
-            Request::Verify(req) => verify(&mut keystore, req).map(Reply::Verify),
-            Request::Exists(req) => exists(&mut keystore, req).map(Reply::Exists),
+            Request::GenerateKey(req) => {
+                let kind = request_kind(req.mechanism)?;
+                generate_key(&mut keystore, req, kind).map(Reply::GenerateKey)
+            },
+            Request::Sign(req) => {
+                let kind = request_kind(req.mechanism)?;
+                sign(&mut keystore, req, kind).map(Reply::Sign)
+            },
+            Request::Verify(req) => {
+                let kind = request_kind(req.mechanism)?;
+                verify(&mut keystore, req, kind).map(Reply::Verify)
+            },
+            Request::Exists(req) => {
+                let kind = request_kind(req.mechanism)?;
+                exists(&mut keystore, req, kind).map(Reply::Exists)
+            },
             _ => Err(Error::RequestNotAvailable),
         }
     }
