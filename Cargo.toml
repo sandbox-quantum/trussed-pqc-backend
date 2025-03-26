@@ -12,9 +12,8 @@ license = "Apache-2.0 OR MIT"
 serde = { version = "1.0.210", default-features = false, features = ["derive"] }
 der = "0.7.9"
 pkcs8 = {version = "0.10.2", features = ["alloc"]}
-# TODO: point this at a real release
-trussed = { git = "https://github.com/sandbox-quantum/trussed.git", branch = "feat/pqc"}
-#trussed = { path = "../trussed" }
+#trussed = { version = "0.1", default-features = false }
+trussed = { path = "../trussed" }
 trussed-core = { version = "0.1.0" }
 serde-big-array = "0.5.1"
 pqcrypto-mldsa = "0.1.0"
@@ -24,11 +23,6 @@ cosey = "0.3"
 [dev-dependencies]
 hex-literal = "0.3.4"
 test-log = "0.2.11"
-
-[patch.crates-io]
-# For local development only
-# Must be patched to force the Nitrokey/trussed repo to use this version
-#littlefs2 = { git = "https://github.com/trussed-dev/littlefs2.git", rev = "960e57d9fc0d209308c8e15dc2625", version = "0.4.0" } 
 
 [features]
 virt = ["std", "trussed/virt"]

@@ -23,17 +23,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug integration test 'dilithium3'",
+            "name": "Debug integration test 'mldsa65'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--test=dilithium3",
+                    "--test=mldsa65",
                     "--package=trussed-pqc-backend",
                     "--features=virt",
                 ],
                 "filter": {
-                    "name": "dilithium3",
+                    "name": "mldsa65",
                     "kind": "test"
                 }
             },
@@ -43,17 +43,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug integration test 'dilithium2'",
+            "name": "Debug integration test 'mldsa44'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--test=dilithium2",
+                    "--test=mldsa44",
                     "--package=trussed-pqc-backend",
                     "--features=virt",
                 ],
                 "filter": {
-                    "name": "dilithium2",
+                    "name": "mldsa44",
                     "kind": "test"
                 }
             },
@@ -63,17 +63,17 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug integration test 'dilithium5'",
+            "name": "Debug integration test 'mldsa87'",
             "cargo": {
                 "args": [
                     "test",
                     "--no-run",
-                    "--test=dilithium5",
+                    "--test=mldsa87",
                     "--package=trussed-pqc-backend",
                     "--features=virt",
                 ],
                 "filter": {
-                    "name": "dilithium5",
+                    "name": "mldsa87",
                     "kind": "test"
                 }
             },
