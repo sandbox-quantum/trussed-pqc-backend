@@ -254,14 +254,25 @@ fn deserialize_pkcs_key(
     let pub_key = pkcs8::SubjectPublicKeyInfoRef::from_der(&request.serialized_key)
         .map_err(|_| Error::InvalidSerializationFormat)?;
 
-    // TODO: check key lengths for each of these
-    match pub_key.algorithm.oid {
+    match request.mechanism {
         #[cfg(feature = "mldsa44")]
-        oids::MLDSA44 => {}
+        Mechanism::Mldsa44 => {
+            if pub_key.algorithm.oid != oids::MLDSA44 {
+                return Err(Error::InvalidSerializationFormat);
+            }
+        }
         #[cfg(feature = "mldsa65")]
-        oids::MLDSA65 => {}
+        Mechanism::Mldsa65 => {
+            if pub_key.algorithm.oid != oids::MLDSA65 {
+                return Err(Error::InvalidSerializationFormat);
+            }
+        }
         #[cfg(feature = "mldsa87")]
-        oids::MLDSA87 => {}
+        Mechanism::Mldsa87 => {
+            if pub_key.algorithm.oid != oids::MLDSA87 {
+                return Err(Error::InvalidSerializationFormat);
+            }
+        }
         _ => return Err(Error::InvalidSerializationFormat),
     }
 
@@ -287,47 +298,6 @@ fn deserialize_key(
 ) -> Result<reply::DeserializeKey, Error> {
     match request.format {
         KeySerialization::Pkcs8Der => deserialize_pkcs_key(keystore, request, kind),
-        // TODO: complete
-        // KeySerialization::Cose => {
-        //     let pk: Result<Bytes, Error> = match request.mechanism {
-        //         Mechanism::Mldsa44 => {
-        //             let cose_public_key: cosey::Mldsa44PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
-        //             cose_public_key.into()
-        //         }
-        //         Mechanism::Mldsa65 => {
-        //             let cose_public_key: cosey::Mldsa65PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
-        //             cose_public_key.into()
-        //         }
-        //         Mechanism::Mldsa87 => {
-        //             let cose_public_key: cosey::Mldsa87PublicKey = cbor_deserialize(&request.serialized_key).map_err(|_| Error::CborError);
-        //             cose_public_key.into()
-        //         }
-        //         _ => Err(Error::RequestNotAvailable),
-        //     };
-
-        //     // TODO: this should all be done upstream
-        //     let cose_public_key: cosey::P256PublicKey =
-        //         crate::cbor_deserialize(&request.serialized_key)
-        //             .map_err(|_| Error::CborError)?;
-        //     let mut serialized_key = [0u8; 64];
-        //     if cose_public_key.x.len() != 32 || cose_public_key.y.len() != 32 {
-        //         return Err(Error::InvalidSerializedKey);
-        //     }
-
-        //     serialized_key[..32].copy_from_slice(&cose_public_key.x);
-        //     serialized_key[32..].copy_from_slice(&cose_public_key.y);
-
-        //     p256_cortex_m4::PublicKey::from_untagged_bytes(&serialized_key)
-        //         .map_err(|_| Error::InvalidSerializedKey)?
-        // }
-
-        // KeySerialization::Raw => {
-        //     let mut serialized_key = [0u8; 64];
-        //     serialized_key.copy_from_slice(&request.serialized_key[..64]);
-
-        //     p256_cortex_m4::PublicKey::from_untagged_bytes(&serialized_key)
-        //         .map_err(|_| Error::InvalidSerializedKey)?
-        // }
         _ => Err(Error::InvalidSerializationFormat),
     }
 }
@@ -338,7 +308,6 @@ fn exists(
     kind: key::Kind,
 ) -> Result<reply::Exists, Error> {
     let key_id = request.key;
-
     let exists = keystore.exists_key(key::Secrecy::Secret, Some(kind), &key_id);
     Ok(reply::Exists { exists })
 }
