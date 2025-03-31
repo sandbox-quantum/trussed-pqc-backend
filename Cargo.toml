@@ -1,0 +1,33 @@
+[package]
+name = "trussed-pqc-backend"
+version = "0.1.0"
+edition = "2021"
+description = "Trussed backend adding support for post-quantum cryptography"
+authors = [
+    "Sandbox AQ <support@sandboxaq.com>"
+]
+license = "Apache-2.0 OR MIT"
+
+[dependencies]
+serde = { version = "1.0.210", default-features = false, features = ["derive"] }
+der = "0.7.9"
+pkcs8 = {version = "0.10.2", features = ["alloc"]}
+trussed = { version = "0.1", default-features = false }
+trussed-core = { version = "0.1.0" }
+serde-big-array = "0.5.1"
+pqcrypto-mldsa = "0.1.0"
+pqcrypto-traits = "0.3.5"
+cosey = "0.3"
+
+[dev-dependencies]
+hex-literal = "0.3.4"
+test-log = "0.2.11"
+
+[features]
+virt = ["std", "trussed/virt"]
+std = []
+
+# Algorithms to enable
+mldsa44 = ["trussed/mldsa44", "cosey/mldsa44"]
+mldsa65 = ["trussed/mldsa65", "cosey/mldsa65"]
+mldsa87 = ["trussed/mldsa87", "cosey/mldsa87"]

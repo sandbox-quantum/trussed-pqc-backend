@@ -1,0 +1,84 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'trussed-pqc-backend'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=trussed-pqc-backend"
+                ],
+                "filter": {
+                    "name": "trussed-pqc-backend",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'mldsa65'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=mldsa65",
+                    "--package=trussed-pqc-backend",
+                    "--features=virt",
+                ],
+                "filter": {
+                    "name": "mldsa65",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'mldsa44'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=mldsa44",
+                    "--package=trussed-pqc-backend",
+                    "--features=virt",
+                ],
+                "filter": {
+                    "name": "mldsa44",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'mldsa87'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=mldsa87",
+                    "--package=trussed-pqc-backend",
+                    "--features=virt",
+                ],
+                "filter": {
+                    "name": "mldsa87",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
